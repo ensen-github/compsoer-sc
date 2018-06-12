@@ -1,0 +1,15 @@
+query selectClaimsByClaimer {
+  description: "取出当前投保人的所有理赔申请记录"
+  statement:
+    SELECT com.accenture.ppsafe.Claim
+      WHERE ((claimer == _$claimer))
+        ORDER BY [claim_request_datetime ASC]
+}
+
+query selectAllWaitnigClaims {
+  description: "取出所有未审核的理赔申请单"
+  statement:
+    SELECT com.accenture.ppsafe.Claim
+      WHERE (status != 'CLOSED')
+        ORDER BY [claim_request_datetime ASC]
+}

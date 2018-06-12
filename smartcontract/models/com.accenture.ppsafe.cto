@@ -1,0 +1,216 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * PPSAFE的结构体定义
+ */
+
+namespace com.accenture.ppsafe
+
+
+enum Currency {
+    o RMB
+    o JPY
+    o USD
+}
+
+enum ClaimResult {
+    o APPROVE
+    o REJECT
+    o UNREVIEW
+}
+
+enum ClaimStataus {
+    o BEGINING
+    o CLOSED
+    o WAITING
+}
+
+enum ReceiptType {
+    o SENDING
+    o RECEIVING
+}
+
+enum TransferType{
+    o TRANSFER
+    o FEE
+    o INDEMNITY     // 赔款
+    o INTEREST
+}
+
+enum PayStatus {
+    o NONPAYMENT
+    o PAID
+}
+
+// Participants start ====================================
+participant BaseAccount identified by id {
+    o String id
+    o String wallet
+    o DateTime regist_datetime
+    o Boolean isFreeze default = false
+}
+
+participant Bank extends BaseAccount {
+    o String[] wallets  // 资金池专用账号数组
+}
+
+participant Insurant extends BaseAccount {
+    o Integer credit         // 信用度  高：3，中：2， 低：1
+}
+
+participant ThirdPartyUser extends BaseAccount {
+}
+
+
+// Assets ================================================
+// 资金池Asset
+asset Wallet identified by id {
+    o String id
+    o Currency currency default = "RMB"
+    o Double balance default=0.0
+    o Double fee default=0.0            // 审核手续费（始终是小于零的数）
+    o Double claimAmount default=0.0    // 理赔款（投保人：> 0, 银行：< 0）
+}
+
+// 保险种类父类Asset
+asset Insurance identified by id {
+    o String id
+    o String ins_type       // 保险种类
+    o Double unit_price     // 保险单价
+    o String description    // 保险说明
+    o DateTime start_time   // 投保开始时间
+    o DateTime end_time     // 投保结束时间
+    o Boolean isClosed      // 保险失效
+    o DateTime ins_close_datetime       // 保险失效时间
+    o DateTime create_datetime          // 保险创建时间
+    o Integer lowest_credit             // 最低投保信用度
+    o String wallet                   // 资金池
+}
+
+// 保单
+asset Policy identified by id {
+    o String id             // 保单号
+    o String insurance      // 险种
+    o String policyHolder   // 投保人
+    o String insurant       // 受保人
+    o Double premium        // 投保金额
+    o Integer quantity      // 投保份数
+    o PayStatus payStatus default="NONPAYMENT" // 支付状态
+    o DateTime create_datetime
+    o DateTime close_datetime default = '2099-12-31T23:59:59.999Z'
+    --> Claim claim optional   // 理赔单
+}
+
+// 房屋漏水险
+asset LeakagePolicy extends Policy {
+    o String houseNumber    // 房产证
+    o String houseAddress   // 地址
+}
+
+// 理赔申请
+asset Claim identified by id {
+    o String id                 // 理赔单ID
+    o String claimer            // 理赔申请人
+    o String policy             // 保险单号
+    o DateTime claim_request_datetime   // 申请理赔日期
+    o DateTime happen_datetime   // 发生日期
+    o Double claim_benefit      // 申请理赔总额
+    o String claim_reason optional      // 申请理由
+    o String[] claim_file_id optional   // 申请理赔材料
+    o String[] claim_file_name optional   // 文件名
+    o DateTime review_start_datetime optional  // 理赔受理开始日期
+    o String reviewer optional          // 理赔受理人
+    o ClaimResult result default = "UNREVIEW"     // 理赔结果
+    o ClaimStataus status default = "WAITING"   // 理赔状态
+    o String[] review_file_id optional  // 审核材料
+    o String review_comment optional    // 审核结果
+    o Double fee default=0.0            // 审核手续费
+}
+
+asset TransferReceipt identified by id {
+    o String id
+    o String requester
+    o String relatedWallet
+    o String senderWallet
+    o String receiverWallet
+    o ReceiptType receiptType
+    o DateTime transactionDate
+    o Double beforeBalance default=0.0
+    o Double amount default=0.0
+    o Currency amountCurrency default = "RMB"
+    o String description optional
+    o TransferType transferType
+}
+
+// Transactions ===========================================
+transaction createInsurant {
+    o String id
+    o Double balance default = 0.0
+    o Integer credit default = 2        // 信用度  高：3，中：2， 低：1
+}
+
+transaction createInsurance {
+    o String id
+    o String ins_type                   // 保险种类
+    o Double unit_price                 // 保险单价
+    o String description default = ""   // 保险说明
+    o DateTime start_time               // 投保开始时间
+    o DateTime end_time                 // 投保结束时间
+    o Boolean isClosed default = false  // 保单失效
+    o DateTime ins_close_datetime  default = '2099-12-31T23:59:59.999Z'     // 保单失效时间
+    o DateTime create_datetime          // 保单创建时间
+    o Integer lowest_credit             // 最低投保信用度
+}
+
+transaction createLeakagePolicy {
+    o String id             // 保单号
+    o String insuranceId    // 险种
+    o String policyHolderId // 投保人
+    o String insurantId     // 受保者
+    o Double premium        // 投保金额
+    o Integer quantity      // 投保份数
+    o String houseNumber    // 房产证
+    o String houseAddress   // 地址
+}
+
+transaction createThirdPartyUser {
+    o String id
+}
+
+transaction createClaim {
+    o String id                         // 理赔单ID
+    o String claimerId                  // 理赔申请人
+    o String policyId                   // 保险单号
+    o String claim_reason               // 申请理由
+    o DateTime happen_datetime          // 发生日期
+    o String[] claim_file_id            // 申请理赔材料ID
+    o String[] claim_file_name          // 文件名
+    o Double claim_benefit              // 申请理赔总额
+}
+
+transaction buyPolicyPay {
+    o String policyHolderId             // 投保人
+    o String policyId                   // 保单编号
+    o Double amount                     // 转账金额
+}
+
+transaction reviewClaim {
+    o String policyId                   // 保单ID
+    o String claimId                    // 理赔单ID
+    o String reviewerId                 // 审核人员ID
+    o ClaimResult result                // 审核结果
+    o String review_comment             // 审核备注
+    o Integer policyHolderCredit        // 投保人员信用评价值
+}
